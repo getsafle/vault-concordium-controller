@@ -442,5 +442,112 @@ class VaultConcordiumController extends EventEmitter {
     }
     console.log("Final transaction status:", finalStatus.status);
     return finalStatus;
-  } 
+  }
+
+  // ============================================================
+  // RECOVERY
+  // ============================================================
+  async restoreIdentityDynamic() {
+    const state = this.store.getState();
+    if (!state.mnemonic) {
+      throw new Error("Mnemonic is missing from state");
+    }
+    const providers = await this.getIdentityProviders();
+    if (!providers || providers.length === 0) {
+      throw new Error("No identity providers available for recovery");
+    }
+    for (let i = 0; i < providers.length; i++) {
+      try {
+        const provider = providers[i];
+        await this.setIdentityProvider(provider);
+        const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, state.network);
+        const globalContext = await this.client.getCryptographicParameters();
+        if (!globalContext) {
+          throw new Error("Failed to fetch global cryptographic parameters");
+        }
+        const idCredSec = wallet.getIdCredSec(provider.ipInfo.ipIdentity, state.identityIndex).toString('hex');
+        const recoveryRequestInput = {
+          idCredSec,
+          ipInfo: provider.ipInfo,
+          globalContext,
+          timestamp: Math.floor(Date.now() / 1000),
+        };
+        const recoveryRequest = createIdentityRecoveryRequestWithKeys(recoveryRequestInput);
+        const searchParams = new URLSearchParams({
+          state: JSON.stringify({ idRecoveryRequest: recoveryRequest }),
+        });
+        const recoveryUrl = `${provider.metadata.recoveryStart}?${searchParams.toString()}`;
+        console.log("Sending recovery request to:", recoveryUrl);
+        const response = await fetch(recoveryUrl);
+
+        if (!response.ok) {
+          const errorDetails = await response.text();
+          throw new Error(`Recovery request failed: ${errorDetails}`);
+        }
+        const identity = await response.json();
+        this.store.updateState({ idObject: identity });
+        return identity;
+      } catch (error) {
+        console.error(`Recovery attempt with provider index ${i} failed: ${error.message}`);
+      }
+    }
+    throw new Error("Failed to recover identity using all available providers");
+  }
+
+  async restoreAccounts() {
+    const state = this.store.getState();
+    if (!state.mnemonic || !state.ipInfo) {
+      throw new Error("Missing required mnemonic or identity provider information");
+    }
+    const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, state.network);
+    const globalContext = await this.client.getCryptographicParameters();
+    if (!globalContext) {
+      throw new Error("Failed to fetch global cryptographic parameters");
+    }
+    const recoveredAccounts = [];
+    const maxAccounts = 200;
+    let lastIndex = 0;
+    for (let i = 0; i < maxAccounts; i++) {
+      lastIndex = i;
+      try {
+        const credId = wallet.getCredentialId(
+          state.ipInfo.ipIdentity,
+          state.identityIndex,
+          i,
+          globalContext
+        );
+        if (!credId) {
+          throw new Error(`Credential id missing for index ${i}`);
+        }
+        const accountAddress = getAccountAddress(credId);
+        let accountInfo;
+        try {
+          console.log(`Fetching accountInfo for index ${i}: ${accountAddress.address}`);
+          accountInfo = await this.client.getAccountInfo(accountAddress);
+        } catch (error) {
+          if (error.message.includes("account%20or%20block%20not%20found.")) {
+            break;
+          }
+        }
+        if (accountInfo && accountInfo.accountAddress) {
+          console.log(`Account found for index ${i}: ${accountAddress.address}`);
+          recoveredAccounts.push({
+            address: accountAddress.address,
+            credentialIndex: i,
+          });
+        } else {
+          console.warn(`No account info found for index ${i}`);
+        }
+      } catch (err) {
+        console.error(`Error recovering account at index ${i}: ${err.message}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    this.store.updateState({ accounts: recoveredAccounts });
+    this.store.updateState({ credCounter: lastIndex });
+    return recoveredAccounts;
+  }  
+
 }
+
+export { VaultConcordiumController, NETWORKS };
