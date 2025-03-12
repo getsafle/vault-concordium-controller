@@ -353,7 +353,6 @@ class VaultConcordiumController extends EventEmitter {
     const amount = CcdAmount.fromCcd(amountCCD);
     const expiry = TransactionExpiry.fromDate(new Date(Date.now() + 1000000));
     const nonce = (await this.client.getNextAccountNonce(sender)).nonce;
-    console.log("Nonce value:", nonce);
     const header = { sender, nonce, expiry };
     const payload = { amount, toAddress };
     const transaction = {
@@ -391,8 +390,6 @@ class VaultConcordiumController extends EventEmitter {
       const txHash = await client.sendAccountTransaction(transaction, signature);
       const blockStatus = await client.waitForTransactionFinalization(txHash);
       const status = blockStatus.summary.transfer.tag;
-      console.log("Transaction Hash:", txHash);
-      console.log("Final Transaction Status:", status);
       const txHashHex = Buffer.from(txHash.buffer).toString('hex');
       return { transactionDetails: blockStatus };
     } catch (error) {
@@ -412,12 +409,10 @@ class VaultConcordiumController extends EventEmitter {
     const transactionHash = typeof txHash === 'string'
       ? TransactionHash.fromHexString(txHash)
       : txHash;
-    console.log("Waiting for transaction finalization for hash:", transactionHash.toString());
     let finalStatus = null;
     while (true) {
       try {
         const blockItemStatus = await this.client.getBlockItemStatus(transactionHash);
-        console.log("Current BlockItemStatus:", blockItemStatus.status);
         if (blockItemStatus.status === 'finalized') {
           const summary = blockItemStatus.outcome.summary;
           if (summary && summary.transactionType === "failed") {
@@ -440,7 +435,6 @@ class VaultConcordiumController extends EventEmitter {
       }
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
-    console.log("Final transaction status:", finalStatus.status);
     return finalStatus;
   }
 
