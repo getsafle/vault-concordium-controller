@@ -98,7 +98,6 @@ class VaultConcordiumController extends EventEmitter {
         arsInfos: identityProvider.arsInfos,
       });
       this.emit("update", this.store.getState());
-      console.log("Identity provider configuration updated.");
     } catch (error) {
       throw new Error(`Failed to update identity provider: ${error.message}`);
     }
@@ -113,7 +112,6 @@ class VaultConcordiumController extends EventEmitter {
         idObject: null,
       });
       this.emit("update", this.store.getState());
-      console.log("Identity flow state cleared.");
     } catch (error) {
       throw new Error(`Failed to clear identity flow: ${error.message}`);
     }
@@ -353,7 +351,6 @@ class VaultConcordiumController extends EventEmitter {
     const amount = CcdAmount.fromCcd(amountCCD);
     const expiry = TransactionExpiry.fromDate(new Date(Date.now() + 1000000));
     const nonce = (await this.client.getNextAccountNonce(sender)).nonce;
-    console.log("Nonce value:", nonce);
     const header = { sender, nonce, expiry };
     const payload = { amount, toAddress };
     const transaction = {
@@ -391,8 +388,6 @@ class VaultConcordiumController extends EventEmitter {
       const txHash = await client.sendAccountTransaction(transaction, signature);
       const blockStatus = await client.waitForTransactionFinalization(txHash);
       const status = blockStatus.summary.transfer.tag;
-      console.log("Transaction Hash:", txHash);
-      console.log("Final Transaction Status:", status);
       const txHashHex = Buffer.from(txHash.buffer).toString('hex');
       return { transactionDetails: blockStatus };
     } catch (error) {
@@ -412,12 +407,10 @@ class VaultConcordiumController extends EventEmitter {
     const transactionHash = typeof txHash === 'string'
       ? TransactionHash.fromHexString(txHash)
       : txHash;
-    console.log("Waiting for transaction finalization for hash:", transactionHash.toString());
     let finalStatus = null;
     while (true) {
       try {
         const blockItemStatus = await this.client.getBlockItemStatus(transactionHash);
-        console.log("Current BlockItemStatus:", blockItemStatus.status);
         if (blockItemStatus.status === 'finalized') {
           const summary = blockItemStatus.outcome.summary;
           if (summary && summary.transactionType === "failed") {
@@ -440,7 +433,6 @@ class VaultConcordiumController extends EventEmitter {
       }
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
-    console.log("Final transaction status:", finalStatus.status);
     return finalStatus;
   }
 
@@ -477,7 +469,6 @@ class VaultConcordiumController extends EventEmitter {
           state: JSON.stringify({ idRecoveryRequest: recoveryRequest }),
         });
         const recoveryUrl = `${provider.metadata.recoveryStart}?${searchParams.toString()}`;
-        console.log("Sending recovery request to:", recoveryUrl);
         const response = await fetch(recoveryUrl);
 
         if (!response.ok) {
@@ -522,7 +513,6 @@ class VaultConcordiumController extends EventEmitter {
         const accountAddress = getAccountAddress(credId);
         let accountInfo;
         try {
-          console.log(`Fetching accountInfo for index ${i}: ${accountAddress.address}`);
           accountInfo = await this.client.getAccountInfo(accountAddress);
         } catch (error) {
           if (error.message.includes("account%20or%20block%20not%20found.")) {
@@ -530,7 +520,6 @@ class VaultConcordiumController extends EventEmitter {
           }
         }
         if (accountInfo && accountInfo.accountAddress) {
-          console.log(`Account found for index ${i}: ${accountAddress.address}`);
           recoveredAccounts.push({
             address: accountAddress.address,
             credentialIndex: i,
