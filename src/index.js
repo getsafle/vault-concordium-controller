@@ -230,5 +230,117 @@ class VaultConcordiumController extends EventEmitter {
     } catch (error) {
       throw new Error(`Failed to initialize identity: ${error.message}`);
     }
-  }  
+  }
+
+  // ============================================================
+  // ACCOUNT MANAGEMENT
+  // ============================================================
+  async addAccount() {
+    const state = this.store.getState();
+    if (!state.idObject) {
+      throw new Error("Identity not initialized");
+    }
+    try {
+      const seedBuffer = bip39.mnemonicToSeedSync(state.mnemonic);
+      const seedAsHex = seedBuffer.toString('hex');
+      const net = state.network;
+      const globalContext = await this.client.getCryptographicParameters();
+      if (!globalContext) {
+        throw new Error('Cryptographic parameters not found on a finalized block.');
+      }
+      const revealedAttributes = [];
+      const identityObject = state.idObject.value;
+      const identityIndex = state.identityIndex;
+      const credNumber = state.credCounter;
+      const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, net);
+      const publicKey = wallet
+        .getAccountPublicKey(state.ipInfo.ipIdentity, identityIndex, credNumber)
+        .toString('hex');
+      const credentialPublicKeys = {
+        keys: {
+          0: { schemeId: 'Ed25519', verifyKey: publicKey },
+        },
+        threshold: 1,
+      };
+      const attributeRandomness = {};
+      const attributeKeys = Object.keys(AttributesKeys).filter((v) => isNaN(Number(v)));
+      attributeKeys.forEach((attrKey) => {
+        const rand = wallet.getAttributeCommitmentRandomness(
+          state.ipInfo.ipIdentity,
+          identityIndex,
+          credNumber,
+          AttributesKeys[attrKey]
+        );
+        if (!rand) {
+          throw new Error(`Randomness for attribute "${attrKey}" is missing.`);
+        }
+        attributeRandomness[attrKey] = rand.toString('hex');
+      });
+      const inputs = {
+        ipInfo: state.ipInfo,
+        globalContext,
+        arsInfos: state.arsInfos,
+        idObject: identityObject,
+        revealedAttributes,
+        seedAsHex,
+        net,
+        identityIndex,
+        credNumber,
+        credentialPublicKeys,
+        attributeRandomness,
+      };
+      const expiry = TransactionExpiry.fromDate(new Date(Date.now() + 3600000));
+      const credentialTx = createCredentialTransaction(inputs, expiry);
+      const signingKey = ConcordiumHdWallet.fromHex(seedAsHex, net)
+        .getAccountSigningKey(state.ipInfo.ipIdentity, identityIndex, credNumber);
+      const signatures = [await signCredentialTransaction(credentialTx, signingKey)];
+      const payload = serializeCredentialDeploymentPayload(signatures, credentialTx);
+      const success = await this.client.sendCredentialDeploymentTransaction(payload, expiry);
+      if (!success) {
+        throw new Error("Credential deployment transaction was rejected by the node.");
+      }
+      const transactionHash = getCredentialDeploymentTransactionHash(credentialTx, signatures);
+      await this.waitForTransactionFinalization(transactionHash);
+      const accountAddress = getAccountAddress(credentialTx.unsignedCdi.credId);
+      const newAccount = {
+        address: accountAddress.address,
+        credentialIndex: credNumber,
+      };
+      const updatedCredCounter = state.credCounter + 1;
+      const updatedAccounts = [...state.accounts, newAccount];
+      this.store.updateState({
+        credCounter: updatedCredCounter,
+        accounts: updatedAccounts,
+      });
+      this.emit("update", this.store.getState());
+      return { address: accountAddress.address};
+    } catch (error) {
+      throw new Error(`Failed to create account: ${error.message}`);
+    }
+  }
+
+  async getAccounts() {
+    const accounts = this.store.getState().accounts;
+    let addresses = [];
+    accounts.forEach((acc) => {
+      addresses.push(acc.address);
+    });
+    return addresses;
+  }
+
+  async getBalance(address) {
+    try {
+      // Convert the string address to an AccountAddress instance.
+      const accountAddr = AccountAddress.fromBase58(address);
+      const accountInfo = await this.client.getAccountInfo(accountAddr);
+      if (!accountInfo || !accountInfo.accountAvailableBalance) {
+        throw new Error("Account not found or balance unavailable.");
+      }
+      const balance = accountInfo.accountAvailableBalance.toString();
+      return { balance };
+    } catch (error) {
+      console.error(`Failed to fetch balance for ${address}:`, error.message);
+      throw new Error("Failed to retrieve account balance.");
+    }
+  }
 }
