@@ -471,7 +471,6 @@ class VaultConcordiumController extends EventEmitter {
           state: JSON.stringify({ idRecoveryRequest: recoveryRequest }),
         });
         const recoveryUrl = `${provider.metadata.recoveryStart}?${searchParams.toString()}`;
-        console.log("Sending recovery request to:", recoveryUrl);
         const response = await fetch(recoveryUrl);
 
         if (!response.ok) {
@@ -516,7 +515,6 @@ class VaultConcordiumController extends EventEmitter {
         const accountAddress = getAccountAddress(credId);
         let accountInfo;
         try {
-          console.log(`Fetching accountInfo for index ${i}: ${accountAddress.address}`);
           accountInfo = await this.client.getAccountInfo(accountAddress);
         } catch (error) {
           if (error.message.includes("account%20or%20block%20not%20found.")) {
@@ -524,7 +522,6 @@ class VaultConcordiumController extends EventEmitter {
           }
         }
         if (accountInfo && accountInfo.accountAddress) {
-          console.log(`Account found for index ${i}: ${accountAddress.address}`);
           recoveredAccounts.push({
             address: accountAddress.address,
             credentialIndex: i,
