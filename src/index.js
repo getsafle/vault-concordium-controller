@@ -98,7 +98,6 @@ class VaultConcordiumController extends EventEmitter {
         arsInfos: identityProvider.arsInfos,
       });
       this.emit("update", this.store.getState());
-      console.log("Identity provider configuration updated.");
     } catch (error) {
       throw new Error(`Failed to update identity provider: ${error.message}`);
     }
@@ -113,7 +112,6 @@ class VaultConcordiumController extends EventEmitter {
         idObject: null,
       });
       this.emit("update", this.store.getState());
-      console.log("Identity flow state cleared.");
     } catch (error) {
       throw new Error(`Failed to clear identity flow: ${error.message}`);
     }
