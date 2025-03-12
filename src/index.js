@@ -547,4 +547,7 @@ class VaultConcordiumController extends EventEmitter {
     this.store.updateState({ credCounter: lastIndex });
     return recoveredAccounts;
   }  
+
 }
+
+export { VaultConcordiumController, NETWORKS };
