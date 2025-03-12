@@ -343,4 +343,104 @@ class VaultConcordiumController extends EventEmitter {
       throw new Error("Failed to retrieve account balance.");
     }
   }
+
+  // ============================================================
+  // TRANSACTION MANAGEMENT
+  // ============================================================
+  async createTransferTransaction(receiver, amountCCD, senderAddress) {
+    const sender = AccountAddress.fromBase58(senderAddress);
+    const toAddress = AccountAddress.fromBase58(receiver);
+    const amount = CcdAmount.fromCcd(amountCCD);
+    const expiry = TransactionExpiry.fromDate(new Date(Date.now() + 1000000));
+    const nonce = (await this.client.getNextAccountNonce(sender)).nonce;
+    console.log("Nonce value:", nonce);
+    const header = { sender, nonce, expiry };
+    const payload = { amount, toAddress };
+    const transaction = {
+      type: AccountTransactionType.Transfer,
+      header: header,
+      payload: payload,
+    };
+    return transaction;
+  }
+
+  async signTransaction(transaction) {
+    const state = this.store.getState();
+    const address = transaction.header.sender.address;
+    const accountObj = state.accounts.find((acc) => acc.address === address);
+    if (!accountObj) {
+      throw new Error("Account not found");
+    }
+    const credIndex = accountObj.credentialIndex;
+    try {
+      const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, state.network);
+      const signingKey = wallet.getAccountSigningKey(state.ipInfo.ipIdentity, state.identityIndex, credIndex);
+      const signer = buildBasicAccountSigner(signingKey.toString('hex'));
+      const signature = await signTransaction(transaction, signer);
+      return signature;
+    } catch (error) {
+      throw new Error(`Failed to sign transaction: ${error.message}`);
+    }
+  }
+
+  async sendTransaction(transaction, signature) {
+    try {
+      const { nodeAddress, nodePort, timeout, maxRetries } = this.store.getState();
+      const client = new ConcordiumGRPCWebClient(nodeAddress, nodePort, { timeout, maxRetries });
+      await client.getConsensusStatus();
+      const txHash = await client.sendAccountTransaction(transaction, signature);
+      const blockStatus = await client.waitForTransactionFinalization(txHash);
+      const status = blockStatus.summary.transfer.tag;
+      console.log("Transaction Hash:", txHash);
+      console.log("Final Transaction Status:", status);
+      const txHashHex = Buffer.from(txHash.buffer).toString('hex');
+      return { transactionDetails: blockStatus };
+    } catch (error) {
+      throw new Error(`Transaction failed: ${error}`);
+    }
+  }
+
+  async waitForTransactionFinalization(txHash) {
+    const { nodeAddress } = this.store.getState();
+    let host = nodeAddress;
+    try {
+      const parsedUrl = new URL(nodeAddress);
+      host = parsedUrl.hostname;
+    } catch (e) {
+      throw new Error(`Failed to parse nodeAddress: ${e.message}`);
+    }
+    const transactionHash = typeof txHash === 'string'
+      ? TransactionHash.fromHexString(txHash)
+      : txHash;
+    console.log("Waiting for transaction finalization for hash:", transactionHash.toString());
+    let finalStatus = null;
+    while (true) {
+      try {
+        const blockItemStatus = await this.client.getBlockItemStatus(transactionHash);
+        console.log("Current BlockItemStatus:", blockItemStatus.status);
+        if (blockItemStatus.status === 'finalized') {
+          const summary = blockItemStatus.outcome.summary;
+          if (summary && summary.transactionType === "failed") {
+            throw new Error(`Transaction failed: ${JSON.stringify(summary)}`);
+          }
+          finalStatus = blockItemStatus;
+          break;
+        }
+      } catch (error) {
+        if (
+          error.message.includes("Connection dropped") ||
+          error.message.includes("ECONNRESET") ||
+          error.message.includes("read ECONNRESET")
+        ) {
+          console.warn("Connection issue detected, retrying polling after delay...");
+        } else {
+          console.error("Error polling transaction status:", error.message);
+          throw new Error(`Error in waitForTransactionFinalization: ${error.message}`);
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    console.log("Final transaction status:", finalStatus.status);
+    return finalStatus;
+  } 
 }
