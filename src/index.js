@@ -20,7 +20,7 @@ import {
 } from '@concordium/web-sdk';
 import ObservableStore from 'obs-store';
 import bip39 from 'bip39';
-import { NETWORKS } from "./constants/index.js";
+import { NETWORKS } from "./constants";
 
 // Helper function to initialize state.
 function initializeState(opts = {}) {
