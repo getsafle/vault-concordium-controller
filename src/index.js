@@ -83,4 +83,52 @@ class VaultConcordiumController extends EventEmitter {
     const { network } = this.store.getState();
     return NETWORKS[network];
   }
+
+  // ============================================================
+  // IDENTITY PROVIDER MANAGEMENT
+  // ============================================================
+  async setIdentityProvider(identityProvider) {
+    if (!identityProvider || !identityProvider.ipInfo || !identityProvider.metadata || !identityProvider.arsInfos) {
+      throw new Error("Invalid identity provider provided");
+    }
+    try {
+      this.store.updateState({
+        ipInfo: identityProvider.ipInfo,
+        ipMetadata: identityProvider.metadata,
+        arsInfos: identityProvider.arsInfos,
+      });
+      this.emit("update", this.store.getState());
+      console.log("Identity provider configuration updated.");
+    } catch (error) {
+      throw new Error(`Failed to update identity provider: ${error.message}`);
+    }
+  }
+
+  clearIdentityFlow() {
+    try {
+      this.store.updateState({
+        ipInfo: null,
+        ipMetadata: null,
+        arsInfos: null,
+        idObject: null,
+      });
+      this.emit("update", this.store.getState());
+      console.log("Identity flow state cleared.");
+    } catch (error) {
+      throw new Error(`Failed to clear identity flow: ${error.message}`);
+    }
+  }
+
+  async getIdentityProviders() {
+    try {
+      const { walletProxyUrl } = this.store.getState();
+      const response = await fetch(`${walletProxyUrl}/v1/ip_info`);
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      throw new Error(`Failed to fetch identity providers: ${error.message}`);
+    }
+  }
 }
