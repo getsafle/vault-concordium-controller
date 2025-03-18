@@ -1,47 +1,52 @@
-import { EventEmitter } from "events";
-import {
-  ConcordiumHdWallet,
-  ConcordiumGRPCWebClient,
-  createIdentityRequestWithKeys,
-  createIdentityRecoveryRequestWithKeys,
-  createCredentialTransaction,
-  signCredentialTransaction,
-  getCredentialDeploymentTransactionHash,
-  getAccountAddress,
-  signTransaction,
-  buildBasicAccountSigner,
-  TransactionExpiry,
-  CcdAmount,
-  AccountTransactionType,
-  serializeCredentialDeploymentPayload,
-  AccountAddress,
-  TransactionHash,
-  AttributesKeys,
-} from '@concordium/web-sdk';
-import ObservableStore from 'obs-store';
-import bip39 from 'bip39';
-import { NETWORKS } from "./constants/index.js";
+const EventEmitter = require("events").EventEmitter;
+const ObservableStore = require("obs-store");
+const bip39 = require("bip39");
+const { NETWORKS } = require("./constants/index.js");
 
-// Helper function to initialize state.
+// Dynamic import for Concordium SDK
+const concordiumImport = (...args) =>
+  import("@concordium/web-sdk").then((module) => ({
+    ConcordiumHdWallet: module.ConcordiumHdWallet,
+    ConcordiumGRPCWebClient: module.ConcordiumGRPCWebClient,
+    createIdentityRequestWithKeys: module.createIdentityRequestWithKeys,
+    createIdentityRecoveryRequestWithKeys:
+      module.createIdentityRecoveryRequestWithKeys,
+    createCredentialTransaction: module.createCredentialTransaction,
+    signCredentialTransaction: module.signCredentialTransaction,
+    getCredentialDeploymentTransactionHash:
+      module.getCredentialDeploymentTransactionHash,
+    getAccountAddress: module.getAccountAddress,
+    signTransaction: module.signTransaction,
+    buildBasicAccountSigner: module.buildBasicAccountSigner,
+    TransactionExpiry: module.TransactionExpiry,
+    CcdAmount: module.CcdAmount,
+    AccountTransactionType: module.AccountTransactionType,
+    serializeCredentialDeploymentPayload:
+      module.serializeCredentialDeploymentPayload,
+    AccountAddress: module.AccountAddress,
+    TransactionHash: module.TransactionHash,
+    AttributesKeys: module.AttributesKeys,
+  }));
+
+// Helper function to initialize state
 function initializeState(opts = {}) {
-    const network = opts.network || "Testnet";
-    const networkConfig = NETWORKS[network];
-    return {
-      mnemonic: opts.mnemonic,
-      network,
-      identityIndex: opts.identityIndex || 0,
-      ipInfo: opts.ipInfo || null,
-      ipMetadata: opts.ipMetadata || null,
-      arsInfos: opts.arsInfos || null,
-      credCounter: opts.credCounter || 0,
-      accounts: opts.accounts || [],
-      idObject: opts.idObject || null,
-      ...networkConfig,
-    };
+  const network = opts.network || "Testnet";
+  const networkConfig = NETWORKS[network];
+  return {
+    mnemonic: opts.mnemonic,
+    network,
+    identityIndex: opts.identityIndex || 0,
+    ipInfo: opts.ipInfo || null,
+    ipMetadata: opts.ipMetadata || null,
+    arsInfos: opts.arsInfos || null,
+    credCounter: opts.credCounter || 0,
+    accounts: opts.accounts || [],
+    idObject: opts.idObject || null,
+    ...networkConfig,
+  };
 }
 
-class VaultConcordiumController extends EventEmitter {
-
+class KeyringController extends EventEmitter {
   constructor(opts = {}) {
     super();
     const initialState = initializeState(opts);
@@ -49,13 +54,19 @@ class VaultConcordiumController extends EventEmitter {
     this._initializeClient();
   }
 
-  // ============================================================
-  // NETWORK MANAGEMENT & INITIALIZATION
-  // ============================================================
   async _initializeClient() {
     try {
-      const { nodeAddress, nodePort, timeout, maxRetries } = this.store.getState();
-      this.client = new ConcordiumGRPCWebClient(nodeAddress, nodePort, { timeout, maxRetries });
+      const { nodeAddress, nodePort, timeout, maxRetries } =
+        this.store.getState();
+      const concordium = await concordiumImport();
+      this.client = new concordium.ConcordiumGRPCWebClient(
+        nodeAddress,
+        nodePort,
+        {
+          timeout,
+          maxRetries,
+        }
+      );
       await this.client.getConsensusStatus();
       this.emit("update", this.store.getState());
     } catch (error) {
@@ -84,11 +95,13 @@ class VaultConcordiumController extends EventEmitter {
     return NETWORKS[network];
   }
 
-  // ============================================================
-  // IDENTITY PROVIDER MANAGEMENT
-  // ============================================================
   async setIdentityProvider(identityProvider) {
-    if (!identityProvider || !identityProvider.ipInfo || !identityProvider.metadata || !identityProvider.arsInfos) {
+    if (
+      !identityProvider ||
+      !identityProvider.ipInfo ||
+      !identityProvider.metadata ||
+      !identityProvider.arsInfos
+    ) {
       throw new Error("Invalid identity provider provided");
     }
     try {
@@ -130,21 +143,34 @@ class VaultConcordiumController extends EventEmitter {
     }
   }
 
-  // ============================================================
-  // IDENTITY REQUEST HANDELLING
-  // ============================================================
   async createIdentityRequest() {
     const state = this.store.getState();
     if (!state.ipInfo || !state.ipMetadata || !state.arsInfos) {
-      throw new Error("Identity provider configuration is missing. Call setIdentityProvider() first.");
+      throw new Error(
+        "Identity provider configuration is missing. Call setIdentityProvider() first."
+      );
     }
     try {
-      const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, state.network);
-      const cryptographicParameters = await this.client.getCryptographicParameters();
+      const concordium = await concordiumImport();
+      const wallet = concordium.ConcordiumHdWallet.fromSeedPhrase(
+        state.mnemonic,
+        state.network
+      );
+      const cryptographicParameters =
+        await this.client.getCryptographicParameters();
       const keys = {
-        idCredSec: wallet.getIdCredSec(state.ipInfo.ipIdentity, state.identityIndex).toString('hex'),
-        prfKey: wallet.getPrfKey(state.ipInfo.ipIdentity, state.identityIndex).toString('hex'),
-        blindingRandomness: wallet.getSignatureBlindingRandomness(state.ipInfo.ipIdentity, state.identityIndex).toString('hex'),
+        idCredSec: wallet
+          .getIdCredSec(state.ipInfo.ipIdentity, state.identityIndex)
+          .toString("hex"),
+        prfKey: wallet
+          .getPrfKey(state.ipInfo.ipIdentity, state.identityIndex)
+          .toString("hex"),
+        blindingRandomness: wallet
+          .getSignatureBlindingRandomness(
+            state.ipInfo.ipIdentity,
+            state.identityIndex
+          )
+          .toString("hex"),
       };
       const input = {
         arsInfos: state.arsInfos,
@@ -153,7 +179,8 @@ class VaultConcordiumController extends EventEmitter {
         globalContext: cryptographicParameters,
         ...keys,
       };
-      const generatedIdentityRequest = createIdentityRequestWithKeys(input);
+      const generatedIdentityRequest =
+        concordium.createIdentityRequestWithKeys(input);
       return generatedIdentityRequest;
     } catch (error) {
       throw new Error(`Failed to create identity request: ${error.message}`);
@@ -163,13 +190,15 @@ class VaultConcordiumController extends EventEmitter {
   async sendIdentityRequest(identityRequestPayload, redirectUri) {
     const state = this.store.getState();
     if (!state.ipMetadata?.issuanceStart) {
-      throw new Error("Identity provider metadata is missing a valid issuanceStart URL.");
+      throw new Error(
+        "Identity provider metadata is missing a valid issuanceStart URL."
+      );
     }
     try {
       const identityIssuanceStartUrl = state.ipMetadata.issuanceStart;
       const params = {
-        scope: 'identity',
-        response_type: 'code',
+        scope: "identity",
+        response_type: "code",
         redirect_uri: redirectUri,
         state: JSON.stringify({ idObjectRequest: identityRequestPayload }),
       };
@@ -183,7 +212,9 @@ class VaultConcordiumController extends EventEmitter {
         } catch (e) {
           errorDetails = "Unable to parse error details.";
         }
-        throw new Error(`Provider did not redirect as expected: ${errorDetails}`);
+        throw new Error(
+          `Provider did not redirect as expected: ${errorDetails}`
+        );
       }
       return response.url;
     } catch (error) {
@@ -192,7 +223,7 @@ class VaultConcordiumController extends EventEmitter {
   }
 
   async retrieveIdentity(redirectUrl) {
-    const parts = redirectUrl.split('#code_uri=');
+    const parts = redirectUrl.split("#code_uri=");
     if (parts.length < 2) {
       throw new Error("Redirect URL does not contain a code_uri fragment.");
     }
@@ -200,14 +231,18 @@ class VaultConcordiumController extends EventEmitter {
     try {
       const response = await fetch(identityUrl);
       if (!response.ok) {
-        throw new Error(`Failed to retrieve identity. HTTP status: ${response.status}`);
+        throw new Error(
+          `Failed to retrieve identity. HTTP status: ${response.status}`
+        );
       }
       const identityTokenContainer = await response.json();
 
       if (identityTokenContainer.status === "done") {
         return identityTokenContainer.token.identityObject;
       } else if (identityTokenContainer.status === "error") {
-        throw new Error(`Identity retrieval error: ${identityTokenContainer.detail}`);
+        throw new Error(
+          `Identity retrieval error: ${identityTokenContainer.detail}`
+        );
       } else if (identityTokenContainer.status === "pending") {
         throw new Error("Identity is still pending. Please retry later.");
       } else {
@@ -230,49 +265,52 @@ class VaultConcordiumController extends EventEmitter {
     }
   }
 
-  // ============================================================
-  // ACCOUNT MANAGEMENT
-  // ============================================================
   async addAccount() {
     const state = this.store.getState();
     if (!state.idObject) {
       throw new Error("Identity not initialized");
     }
     try {
+      const concordium = await concordiumImport();
       const seedBuffer = bip39.mnemonicToSeedSync(state.mnemonic);
-      const seedAsHex = seedBuffer.toString('hex');
+      const seedAsHex = seedBuffer.toString("hex");
       const net = state.network;
       const globalContext = await this.client.getCryptographicParameters();
       if (!globalContext) {
-        throw new Error('Cryptographic parameters not found on a finalized block.');
+        throw new Error(
+          "Cryptographic parameters not found on a finalized block."
+        );
       }
       const revealedAttributes = [];
       const identityObject = state.idObject.value;
       const identityIndex = state.identityIndex;
       const credNumber = state.credCounter;
-      const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, net);
+      const wallet = concordium.ConcordiumHdWallet.fromSeedPhrase(
+        state.mnemonic,
+        net
+      );
       const publicKey = wallet
         .getAccountPublicKey(state.ipInfo.ipIdentity, identityIndex, credNumber)
-        .toString('hex');
+        .toString("hex");
       const credentialPublicKeys = {
-        keys: {
-          0: { schemeId: 'Ed25519', verifyKey: publicKey },
-        },
+        keys: { 0: { schemeId: "Ed25519", verifyKey: publicKey } },
         threshold: 1,
       };
       const attributeRandomness = {};
-      const attributeKeys = Object.keys(AttributesKeys).filter((v) => isNaN(Number(v)));
+      const attributeKeys = Object.keys(concordium.AttributesKeys).filter((v) =>
+        isNaN(Number(v))
+      );
       attributeKeys.forEach((attrKey) => {
         const rand = wallet.getAttributeCommitmentRandomness(
           state.ipInfo.ipIdentity,
           identityIndex,
           credNumber,
-          AttributesKeys[attrKey]
+          concordium.AttributesKeys[attrKey]
         );
         if (!rand) {
           throw new Error(`Randomness for attribute "${attrKey}" is missing.`);
         }
-        attributeRandomness[attrKey] = rand.toString('hex');
+        attributeRandomness[attrKey] = rand.toString("hex");
       });
       const inputs = {
         ipInfo: state.ipInfo,
@@ -287,19 +325,45 @@ class VaultConcordiumController extends EventEmitter {
         credentialPublicKeys,
         attributeRandomness,
       };
-      const expiry = TransactionExpiry.fromDate(new Date(Date.now() + 3600000));
-      const credentialTx = createCredentialTransaction(inputs, expiry);
-      const signingKey = ConcordiumHdWallet.fromHex(seedAsHex, net)
-        .getAccountSigningKey(state.ipInfo.ipIdentity, identityIndex, credNumber);
-      const signatures = [await signCredentialTransaction(credentialTx, signingKey)];
-      const payload = serializeCredentialDeploymentPayload(signatures, credentialTx);
-      const success = await this.client.sendCredentialDeploymentTransaction(payload, expiry);
+      const expiry = concordium.TransactionExpiry.fromDate(
+        new Date(Date.now() + 3600000)
+      );
+      const credentialTx = concordium.createCredentialTransaction(
+        inputs,
+        expiry
+      );
+      const signingKey = concordium.ConcordiumHdWallet.fromHex(
+        seedAsHex,
+        net
+      ).getAccountSigningKey(
+        state.ipInfo.ipIdentity,
+        identityIndex,
+        credNumber
+      );
+      const signatures = [
+        await concordium.signCredentialTransaction(credentialTx, signingKey),
+      ];
+      const payload = concordium.serializeCredentialDeploymentPayload(
+        signatures,
+        credentialTx
+      );
+      const success = await this.client.sendCredentialDeploymentTransaction(
+        payload,
+        expiry
+      );
       if (!success) {
-        throw new Error("Credential deployment transaction was rejected by the node.");
+        throw new Error(
+          "Credential deployment transaction was rejected by the node."
+        );
       }
-      const transactionHash = getCredentialDeploymentTransactionHash(credentialTx, signatures);
+      const transactionHash = concordium.getCredentialDeploymentTransactionHash(
+        credentialTx,
+        signatures
+      );
       await this.waitForTransactionFinalization(transactionHash);
-      const accountAddress = getAccountAddress(credentialTx.unsignedCdi.credId);
+      const accountAddress = concordium.getAccountAddress(
+        credentialTx.unsignedCdi.credId
+      );
       const newAccount = {
         address: accountAddress.address,
         credentialIndex: credNumber,
@@ -311,7 +375,7 @@ class VaultConcordiumController extends EventEmitter {
         accounts: updatedAccounts,
       });
       this.emit("update", this.store.getState());
-      return { address: accountAddress.address};
+      return { address: accountAddress.address };
     } catch (error) {
       throw new Error(`Failed to create account: ${error.message}`);
     }
@@ -320,16 +384,14 @@ class VaultConcordiumController extends EventEmitter {
   async getAccounts() {
     const accounts = this.store.getState().accounts;
     let addresses = [];
-    accounts.forEach((acc) => {
-      addresses.push(acc.address);
-    });
+    accounts.forEach((acc) => addresses.push(acc.address));
     return addresses;
   }
 
   async getBalance(address) {
     try {
-      // Convert the string address to an AccountAddress instance.
-      const accountAddr = AccountAddress.fromBase58(address);
+      const concordium = await concordiumImport();
+      const accountAddr = concordium.AccountAddress.fromBase58(address);
       const accountInfo = await this.client.getAccountInfo(accountAddr);
       if (!accountInfo || !accountInfo.accountAvailableBalance) {
         throw new Error("Account not found or balance unavailable.");
@@ -342,27 +404,28 @@ class VaultConcordiumController extends EventEmitter {
     }
   }
 
-  // ============================================================
-  // TRANSACTION MANAGEMENT
-  // ============================================================
   async createTransferTransaction(receiver, amountCCD, senderAddress) {
-    const sender = AccountAddress.fromBase58(senderAddress);
-    const toAddress = AccountAddress.fromBase58(receiver);
-    const amount = CcdAmount.fromCcd(amountCCD);
-    const expiry = TransactionExpiry.fromDate(new Date(Date.now() + 1000000));
+    const concordium = await concordiumImport();
+    const sender = concordium.AccountAddress.fromBase58(senderAddress);
+    const toAddress = concordium.AccountAddress.fromBase58(receiver);
+    const amount = concordium.CcdAmount.fromCcd(amountCCD);
+    const expiry = concordium.TransactionExpiry.fromDate(
+      new Date(Date.now() + 1000000)
+    );
     const nonce = (await this.client.getNextAccountNonce(sender)).nonce;
     const header = { sender, nonce, expiry };
     const payload = { amount, toAddress };
     const transaction = {
-      type: AccountTransactionType.Transfer,
-      header: header,
-      payload: payload,
+      type: concordium.AccountTransactionType.Transfer,
+      header,
+      payload,
     };
     return transaction;
   }
 
   async signTransaction(transaction) {
     const state = this.store.getState();
+    const concordium = await concordiumImport();
     const address = transaction.header.sender.address;
     const accountObj = state.accounts.find((acc) => acc.address === address);
     if (!accountObj) {
@@ -370,10 +433,19 @@ class VaultConcordiumController extends EventEmitter {
     }
     const credIndex = accountObj.credentialIndex;
     try {
-      const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, state.network);
-      const signingKey = wallet.getAccountSigningKey(state.ipInfo.ipIdentity, state.identityIndex, credIndex);
-      const signer = buildBasicAccountSigner(signingKey.toString('hex'));
-      const signature = await signTransaction(transaction, signer);
+      const wallet = concordium.ConcordiumHdWallet.fromSeedPhrase(
+        state.mnemonic,
+        state.network
+      );
+      const signingKey = wallet.getAccountSigningKey(
+        state.ipInfo.ipIdentity,
+        state.identityIndex,
+        credIndex
+      );
+      const signer = concordium.buildBasicAccountSigner(
+        signingKey.toString("hex")
+      );
+      const signature = await concordium.signTransaction(transaction, signer);
       return signature;
     } catch (error) {
       throw new Error(`Failed to sign transaction: ${error.message}`);
@@ -382,13 +454,22 @@ class VaultConcordiumController extends EventEmitter {
 
   async sendTransaction(transaction, signature) {
     try {
-      const { nodeAddress, nodePort, timeout, maxRetries } = this.store.getState();
-      const client = new ConcordiumGRPCWebClient(nodeAddress, nodePort, { timeout, maxRetries });
+      const concordium = await concordiumImport();
+      const { nodeAddress, nodePort, timeout, maxRetries } =
+        this.store.getState();
+      const client = new concordium.ConcordiumGRPCWebClient(
+        nodeAddress,
+        nodePort,
+        { timeout, maxRetries }
+      );
       await client.getConsensusStatus();
-      const txHash = await client.sendAccountTransaction(transaction, signature);
+      const txHash = await client.sendAccountTransaction(
+        transaction,
+        signature
+      );
       const blockStatus = await client.waitForTransactionFinalization(txHash);
       const status = blockStatus.summary.transfer.tag;
-      const txHashHex = Buffer.from(txHash.buffer).toString('hex');
+      const txHashHex = Buffer.from(txHash.buffer).toString("hex");
       return { transactionDetails: blockStatus };
     } catch (error) {
       throw new Error(`Transaction failed: ${error}`);
@@ -396,6 +477,7 @@ class VaultConcordiumController extends EventEmitter {
   }
 
   async waitForTransactionFinalization(txHash) {
+    const concordium = await concordiumImport();
     const { nodeAddress } = this.store.getState();
     let host = nodeAddress;
     try {
@@ -404,14 +486,17 @@ class VaultConcordiumController extends EventEmitter {
     } catch (e) {
       throw new Error(`Failed to parse nodeAddress: ${e.message}`);
     }
-    const transactionHash = typeof txHash === 'string'
-      ? TransactionHash.fromHexString(txHash)
-      : txHash;
+    const transactionHash =
+      typeof txHash === "string"
+        ? concordium.TransactionHash.fromHexString(txHash)
+        : txHash;
     let finalStatus = null;
     while (true) {
       try {
-        const blockItemStatus = await this.client.getBlockItemStatus(transactionHash);
-        if (blockItemStatus.status === 'finalized') {
+        const blockItemStatus = await this.client.getBlockItemStatus(
+          transactionHash
+        );
+        if (blockItemStatus.status === "finalized") {
           const summary = blockItemStatus.outcome.summary;
           if (summary && summary.transactionType === "failed") {
             throw new Error(`Transaction failed: ${JSON.stringify(summary)}`);
@@ -425,25 +510,27 @@ class VaultConcordiumController extends EventEmitter {
           error.message.includes("ECONNRESET") ||
           error.message.includes("read ECONNRESET")
         ) {
-          console.warn("Connection issue detected, retrying polling after delay...");
+          console.warn(
+            "Connection issue detected, retrying polling after delay..."
+          );
         } else {
           console.error("Error polling transaction status:", error.message);
-          throw new Error(`Error in waitForTransactionFinalization: ${error.message}`);
+          throw new Error(
+            `Error in waitForTransactionFinalization: ${error.message}`
+          );
         }
       }
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
     return finalStatus;
   }
 
-  // ============================================================
-  // RECOVERY
-  // ============================================================
   async restoreIdentityDynamic() {
     const state = this.store.getState();
     if (!state.mnemonic) {
       throw new Error("Mnemonic is missing from state");
     }
+    const concordium = await concordiumImport();
     const providers = await this.getIdentityProviders();
     if (!providers || providers.length === 0) {
       throw new Error("No identity providers available for recovery");
@@ -452,23 +539,33 @@ class VaultConcordiumController extends EventEmitter {
       try {
         const provider = providers[i];
         await this.setIdentityProvider(provider);
-        const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, state.network);
+        const wallet = concordium.ConcordiumHdWallet.fromSeedPhrase(
+          state.mnemonic,
+          state.network
+        );
         const globalContext = await this.client.getCryptographicParameters();
         if (!globalContext) {
           throw new Error("Failed to fetch global cryptographic parameters");
         }
-        const idCredSec = wallet.getIdCredSec(provider.ipInfo.ipIdentity, state.identityIndex).toString('hex');
+        const idCredSec = wallet
+          .getIdCredSec(provider.ipInfo.ipIdentity, state.identityIndex)
+          .toString("hex");
         const recoveryRequestInput = {
           idCredSec,
           ipInfo: provider.ipInfo,
           globalContext,
           timestamp: Math.floor(Date.now() / 1000),
         };
-        const recoveryRequest = createIdentityRecoveryRequestWithKeys(recoveryRequestInput);
+        const recoveryRequest =
+          concordium.createIdentityRecoveryRequestWithKeys(
+            recoveryRequestInput
+          );
         const searchParams = new URLSearchParams({
           state: JSON.stringify({ idRecoveryRequest: recoveryRequest }),
         });
-        const recoveryUrl = `${provider.metadata.recoveryStart}?${searchParams.toString()}`;
+        const recoveryUrl = `${
+          provider.metadata.recoveryStart
+        }?${searchParams.toString()}`;
         const response = await fetch(recoveryUrl);
 
         if (!response.ok) {
@@ -479,7 +576,9 @@ class VaultConcordiumController extends EventEmitter {
         this.store.updateState({ idObject: identity });
         return identity;
       } catch (error) {
-        console.error(`Recovery attempt with provider index ${i} failed: ${error.message}`);
+        console.error(
+          `Recovery attempt with provider index ${i} failed: ${error.message}`
+        );
       }
     }
     throw new Error("Failed to recover identity using all available providers");
@@ -488,9 +587,15 @@ class VaultConcordiumController extends EventEmitter {
   async restoreAccounts() {
     const state = this.store.getState();
     if (!state.mnemonic || !state.ipInfo) {
-      throw new Error("Missing required mnemonic or identity provider information");
+      throw new Error(
+        "Missing required mnemonic or identity provider information"
+      );
     }
-    const wallet = ConcordiumHdWallet.fromSeedPhrase(state.mnemonic, state.network);
+    const concordium = await concordiumImport();
+    const wallet = concordium.ConcordiumHdWallet.fromSeedPhrase(
+      state.mnemonic,
+      state.network
+    );
     const globalContext = await this.client.getCryptographicParameters();
     if (!globalContext) {
       throw new Error("Failed to fetch global cryptographic parameters");
@@ -510,7 +615,7 @@ class VaultConcordiumController extends EventEmitter {
         if (!credId) {
           throw new Error(`Credential id missing for index ${i}`);
         }
-        const accountAddress = getAccountAddress(credId);
+        const accountAddress = concordium.getAccountAddress(credId);
         let accountInfo;
         try {
           accountInfo = await this.client.getAccountInfo(accountAddress);
@@ -530,13 +635,12 @@ class VaultConcordiumController extends EventEmitter {
       } catch (err) {
         console.error(`Error recovering account at index ${i}: ${err.message}`);
       }
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
     this.store.updateState({ accounts: recoveredAccounts });
     this.store.updateState({ credCounter: lastIndex });
     return recoveredAccounts;
-  }  
-
+  }
 }
 
-export { VaultConcordiumController, NETWORKS };
+module.exports = { KeyringController, NETWORKS };
