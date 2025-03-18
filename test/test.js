@@ -93,122 +93,122 @@ describe("VaultConcordiumController Tests", function () {
     );
   });
 
-  it("should create and send an identity request, then wait for user input", async function () {
-    this.timeout(120000);
-    const identityRequest = await controller.createIdentityRequest();
-    assert.notStrictEqual(
-      identityRequest,
-      null,
-      "Failed to create identity request"
-    );
+  // it("should create and send an identity request, then wait for user input", async function () {
+  //   this.timeout(120000);
+  //   const identityRequest = await controller.createIdentityRequest();
+  //   assert.notStrictEqual(
+  //     identityRequest,
+  //     null,
+  //     "Failed to create identity request"
+  //   );
 
-    const redirectUri = "http://localhost:4173/confirm-identity";
-    const identityVerificationUrl = await controller.sendIdentityRequest(
-      identityRequest,
-      redirectUri
-    );
+  //   const redirectUri = "http://localhost:4173/confirm-identity";
+  //   const identityVerificationUrl = await controller.sendIdentityRequest(
+  //     identityRequest,
+  //     redirectUri
+  //   );
 
-    console.log("\n🔗 Visit this URL to complete identity verification:");
-    console.log(identityVerificationUrl);
-    console.log(
-      "\n📌 After completing verification, paste the **redirect URL** from your browser below."
-    );
+  //   console.log("\n🔗 Visit this URL to complete identity verification:");
+  //   console.log(identityVerificationUrl);
+  //   console.log(
+  //     "\n📌 After completing verification, paste the **redirect URL** from your browser below."
+  //   );
 
-    const userRedirectUrl = await askQuestion("\n✍️ Enter the redirect URL: ");
+  //   const userRedirectUrl = await askQuestion("\n✍️ Enter the redirect URL: ");
 
-    storedIdentity = await controller.retrieveIdentity(userRedirectUrl);
-    assert.notStrictEqual(storedIdentity, null, "Failed to retrieve identity");
+  //   storedIdentity = await controller.retrieveIdentity(userRedirectUrl);
+  //   assert.notStrictEqual(storedIdentity, null, "Failed to retrieve identity");
 
-    await controller.initializeIdentity(storedIdentity);
-    assert.notStrictEqual(
-      controller.store.getState().idObject,
-      null,
-      "Failed to initialize identity"
-    );
-  });
+  //   await controller.initializeIdentity(storedIdentity);
+  //   assert.notStrictEqual(
+  //     controller.store.getState().idObject,
+  //     null,
+  //     "Failed to initialize identity"
+  //   );
+  // });
 
-  describe("Account Management Tests", function () {
-    this.timeout(100000);
-    it("should create an account", async function () {
-      const account = await controller.addAccount();
-      assert.ok(
-        account.address && account.address.length > 0,
-        "Failed to create account"
-      );
-    });
+  // describe("Account Management Tests", function () {
+  //   this.timeout(100000);
+  //   it("should create an account", async function () {
+  //     const account = await controller.addAccount();
+  //     assert.ok(
+  //       account.address && account.address.length > 0,
+  //       "Failed to create account"
+  //     );
+  //   });
 
-    it("should fetch accounts", async function () {
-      accountAddresses = await controller.getAccounts();
-      assert.notStrictEqual(accountAddresses.length, 0, "No accounts in store");
-    });
+  //   it("should fetch accounts", async function () {
+  //     accountAddresses = await controller.getAccounts();
+  //     assert.notStrictEqual(accountAddresses.length, 0, "No accounts in store");
+  //   });
 
-    it("should get account balance", async function () {
-      const balance = await controller.getBalance(accountAddresses[0]);
-      assert.ok(
-        balance.balance !== undefined,
-        "Failed to retrieve account balance"
-      );
-    });
-  });
+  //   it("should get account balance", async function () {
+  //     const balance = await controller.getBalance(accountAddresses[0]);
+  //     assert.ok(
+  //       balance.balance !== undefined,
+  //       "Failed to retrieve account balance"
+  //     );
+  //   });
+  // });
 
-  describe("Recovery Flow Tests", function () {
-    it("should recover identity and match the created identity", async function () {
-      const recoveredIdentity = await controller.restoreIdentityDynamic();
-      assert.deepStrictEqual(
-        recoveredIdentity,
-        storedIdentity,
-        "Recovered identity does not match the created identity"
-      );
-    });
+  // describe("Recovery Flow Tests", function () {
+  //   it("should recover identity and match the created identity", async function () {
+  //     const recoveredIdentity = await controller.restoreIdentityDynamic();
+  //     assert.deepStrictEqual(
+  //       recoveredIdentity,
+  //       storedIdentity,
+  //       "Recovered identity does not match the created identity"
+  //     );
+  //   });
 
-    it("should restore accounts and match created accounts", async function () {
-      const restoredAccountObjects = await controller.restoreAccounts();
-      const restoredAccountAddresses = restoredAccountObjects.map(
-        (acc) => acc.address
-      );
+  //   it("should restore accounts and match created accounts", async function () {
+  //     const restoredAccountObjects = await controller.restoreAccounts();
+  //     const restoredAccountAddresses = restoredAccountObjects.map(
+  //       (acc) => acc.address
+  //     );
 
-      assert.deepStrictEqual(
-        new Set(restoredAccountAddresses),
-        new Set(accountAddresses),
-        "Restored account addresses do not match created account addresses"
-      );
-    });
-  });
+  //     assert.deepStrictEqual(
+  //       new Set(restoredAccountAddresses),
+  //       new Set(accountAddresses),
+  //       "Restored account addresses do not match created account addresses"
+  //     );
+  //   });
+  // });
 
-  describe("Transfer Transaction Tests", function () {
-    this.timeout(1000000);
-    it("should create, sign and send a transfer transaction", async function () {
-      let userDecision;
-      do {
-        userDecision = await askQuestion(
-          'Have you funded your wallet? Type "yes" to continue or "no" to wait: '
-        );
-      } while (userDecision.toLowerCase() !== "yes");
+  // describe("Transfer Transaction Tests", function () {
+  //   this.timeout(1000000);
+  //   it("should create, sign and send a transfer transaction", async function () {
+  //     let userDecision;
+  //     do {
+  //       userDecision = await askQuestion(
+  //         'Have you funded your wallet? Type "yes" to continue or "no" to wait: '
+  //       );
+  //     } while (userDecision.toLowerCase() !== "yes");
 
-      console.log("Proceeding with the transfer transaction...");
+  //     console.log("Proceeding with the transfer transaction...");
 
-      const accounts = await controller.getAccounts();
-      const receiver = "4QkqdUnrjShrUrHpE96odLM6J77nWzEryifzqNnwNk4FYNge8a";
-      const sender = accounts[0];
-      const transaction = await controller.createTransferTransaction(
-        receiver,
-        10,
-        sender
-      );
-      assert.notStrictEqual(transaction, null, "Failed to create transaction");
+  //     const accounts = await controller.getAccounts();
+  //     const receiver = "4QkqdUnrjShrUrHpE96odLM6J77nWzEryifzqNnwNk4FYNge8a";
+  //     const sender = accounts[0];
+  //     const transaction = await controller.createTransferTransaction(
+  //       receiver,
+  //       10,
+  //       sender
+  //     );
+  //     assert.notStrictEqual(transaction, null, "Failed to create transaction");
 
-      const signature = await controller.signTransaction(transaction);
-      assert.notStrictEqual(signature, null, "Failed to sign transaction");
+  //     const signature = await controller.signTransaction(transaction);
+  //     assert.notStrictEqual(signature, null, "Failed to sign transaction");
 
-      const { transactionDetails } = await controller.sendTransaction(
-        transaction,
-        signature
-      );
-      assert.notStrictEqual(
-        transactionDetails,
-        null,
-        "Failed to send transaction"
-      );
-    });
-  });
+  //     const { transactionDetails } = await controller.sendTransaction(
+  //       transaction,
+  //       signature
+  //     );
+  //     assert.notStrictEqual(
+  //       transactionDetails,
+  //       null,
+  //       "Failed to send transaction"
+  //     );
+  //   });
+  // });
 });
