@@ -52,6 +52,7 @@ class KeyringController extends EventEmitter {
     const initialState = initializeState(opts);
     this.store = new ObservableStore(initialState);
     this._initializeClient();
+    this.setNetwork("Mainnet");
   }
 
   async _initializeClient() {
@@ -68,6 +69,7 @@ class KeyringController extends EventEmitter {
         }
       );
       await this.client.getConsensusStatus();
+
       this.emit("update", this.store.getState());
     } catch (error) {
       throw new Error(`Failed to initialize client: ${error.message}`);
