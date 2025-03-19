@@ -4,7 +4,7 @@
 name: Feature/Bugfix branch
 
 on:
-#   workflow_call:
+  #   workflow_call:
   push:
     branches:
       - feature-*
@@ -13,36 +13,34 @@ on:
       - test
   pull_request:
     branches:
-        - feature-*
-        - bugfix-*
-        - dev
-        - test
+      - feature-*
+      - bugfix-*
+      - dev
+      - test
     paths:
       - package.json
-      - CHANGELOG 
+      - CHANGELOG
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Code checkout
-      uses: actions/checkout@v2
+      - name: Code checkout
+        uses: actions/checkout@v2
 
-    - name: Setting up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '16.16.0'
+      - name: Setting up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "20"
 
-    - name: Installing dependencies 
-      run: npm ci
-      
-    - name: Run tests
-      run: |
-        npm run test
-        npx jest --coverage | tee ./coverage.txt && exit ${PIPESTATUS[0]}
+      - name: Installing dependencies
+        run: npm ci
 
-    - name: Jest Coverage Comment
-      uses: MishaKav/jest-coverage-comment@main
-      with:
-        coverage-path: ./coverage.txt
-        
+      - name: Run tests
+        run: |
+          npm run test
+
+      - name: Jest Coverage Comment
+        uses: MishaKav/jest-coverage-comment@main
+        with:
+          coverage-path: ./coverage.txt
