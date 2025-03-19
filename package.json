@@ -1,0 +1,40 @@
+{
+  "name": "@getsafle/vault-concordium-controller",
+  "version": "1.0.0",
+  "description": "Concordium chain controller for Safle Vault",
+  "main": "src/index.js",
+  "scripts": {
+    "test-audit": "npm audit",
+    "test": "mocha \"test/**.js\" --timeout 15000",
+    "test:coverage": "npm run cover:unit && npm run cover:report",
+    "test:coveragehtml": "npm run cover:unit && npm run cover:reporthtml",
+    "cover:unit": "nyc --silent npm run test",
+    "cover:report": "nyc report --reporter=lcov --reporter=text --report-dir='./jscoverage'",
+    "cover:reporthtml": "nyc report --reporter=html --report-dir='./jscoverage'"
+  },
+  "keywords": [
+    "concordium",
+    "vault"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/getsafle/vault-concordium-controller.git"
+  },
+  "author": "safle",
+  "license": "MIT",
+  "contributors": [
+    {
+      "name": "Vipul",
+      "email": "vipul@getsafle.com"
+    }
+  ],
+  "homepage": "https://github.com/getsafle/vault-concordium-controller#readme",
+  "dependencies": {
+    "@concordium/web-sdk": "^9.0.0",
+    "bip39": "^3.1.0",
+    "events": "^3.3.0",
+    "mocha": "^11.1.0",
+    "node-fetch": "^3.3.2",
+    "obs-store": "^4.0.3"
+  }
+}
