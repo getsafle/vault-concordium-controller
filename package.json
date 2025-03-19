@@ -1,6 +1,6 @@
 {
   "name": "@getsafle/vault-concordium-controller",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Concordium chain controller for Safle Vault",
   "main": "src/index.js",
   "scripts": {
