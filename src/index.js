@@ -52,7 +52,6 @@ class KeyringController extends EventEmitter {
     const initialState = initializeState(opts);
     this.store = new ObservableStore(initialState);
     this._initializeClient();
-    this.setNetwork("Mainnet");
   }
 
   async _initializeClient() {
